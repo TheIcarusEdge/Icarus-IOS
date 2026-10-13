@@ -1,0 +1,46 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch fonts (SIL OFL 1.1)
+        run: |
+          mkdir -p Icarus/Fonts
+          base=https://github.com/google/fonts/raw/main/ofl
+          curl -sSLf -o Icarus/Fonts/SchibstedGrotesk.ttf "$base/schibstedgrotesk/SchibstedGrotesk%5Bwght%5D.ttf"
+          curl -sSLf -o Icarus/Fonts/Archivo.ttf "$base/archivo/Archivo%5Bwdth,wght%5D.ttf"
+          curl -sSLf -o Icarus/Fonts/OFL-SchibstedGrotesk.txt "$base/schibstedgrotesk/OFL.txt"
+          curl -sSLf -o Icarus/Fonts/OFL-Archivo.txt "$base/archivo/OFL.txt"
+
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build
+        run: |
+          xcodebuild -project Icarus.xcodeproj -scheme Icarus -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build > build.log 2>&1 || { grep -E "error:" build.log | sort -u | head -60; tail -n 25 build.log; exit 1; }
+          tail -n 5 build.log
+
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Icarus.app Payload/
+          zip -qry Icarus.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Icarus-ipa
+          path: Icarus.ipa
+          retention-days: 14
