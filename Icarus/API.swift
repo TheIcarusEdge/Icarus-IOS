@@ -22,13 +22,21 @@ struct API {
         req.timeoutInterval = 12
         let (data, resp) = try await URLSession.shared.data(for: req)
         if let code = (resp as? HTTPURLResponse)?.statusCode, code >= 400 {
-            throw URLError(.badServerResponse)
+            throw HTTPError(code: code, path: path)
         }
         return try JSONDecoder().decode(T.self, from: data)
     }
 }
 
+struct HTTPError: LocalizedError {
+    let code: Int
+    let path: String
+    var errorDescription: String? { "the server answered \(code) for /\(path)" }
+}
+
 // MARK: - Models (every field optional where the server can send null)
+
+struct Health: Decodable { let ok: Bool? }
 
 struct MobileAlerts: Decodable {
     let date: String?
@@ -90,11 +98,19 @@ struct Gex: Decodable {
 
 struct SwingResp: Decodable {
     let tracking: [SwingRow]?
+    let resolved: [SwingRow]?
     let rollup: SwingRollup?
 }
 
-struct SwingRollup: Decodable { let posted: WinCount? }
+struct SwingRollup: Decodable {
+    let posted: WinCount?
+    let shadow: WinCount?
+    let direction: [Split]?
+    let method: [Split]?
+    let regime: [Split]?
+}
 struct WinCount: Decodable { let n: Int; let wins: Int }
+struct Split: Decodable { let k: String?; let n: Int; let w: Int }
 
 struct SwingRow: Decodable, Identifiable {
     var id: String { "\(ticker)-\(date ?? "")-\(method ?? "")-\(strike ?? 0)" }
@@ -110,6 +126,8 @@ struct SwingRow: Decodable, Identifiable {
     let expiry: String?
     let entry_mid: Double?
     let peak_pct: Double?
+    let min_pct: Double?
+    let hit50: Int?
 }
 
 struct PositionsResp: Decodable { let positions: [Position]? }
@@ -120,6 +138,7 @@ struct Position: Decodable, Identifiable {
     let entry_premium: Double?
     let live_mark: Double?
     let unrealized_pct: Double?
+    let unrealized_pnl: Double?
     let opened_at_et: String?
 }
 
@@ -132,11 +151,24 @@ struct ClosedTrade: Decodable, Identifiable {
     let entry_premium: Double?
     let exit_premium: Double?
     let pnl_pct: Double?
+    let pnl_usd: Double?
 }
 
 struct Account: Decodable {
+    let starting_balance: Double?
+    let current_balance: Double?
+    let daily_realized_pnl: Double?
+    let total_realized_pnl: Double?
     let trades_today: Int?
     let kill_switch: KillSwitch?
+    let win_rate_10d: TenDay?
+}
+
+struct TenDay: Decodable {
+    let total_trades: Int?
+    let wins: Int?
+    let losses: Int?
+    let win_rate_pct: Int?
 }
 
 struct KillSwitch: Decodable {
@@ -215,6 +247,23 @@ final class Store: ObservableObject {
             closedToday = (rpf.trades ?? []).filter { ($0.closed_at_et ?? "").hasPrefix(today) }
         }
         if let rac { account = rac }
+    }
+
+    /// Plain-English answer for Settings › Test Connection.
+    static func diagnose(server: String) async -> String {
+        guard let api = API(server) else { return "Enter the Icarus address first." }
+        let host = api.base.host ?? server
+        do {
+            let _: Health = try await api.get("api/health")
+        } catch {
+            return "Can't reach \(host): \(error.localizedDescription). Check that the Icarus API is running on the PC and that `tailscale serve --bg 8765` was run there."
+        }
+        do {
+            let _: MobileAlerts = try await api.get("api/mobile/alerts")
+        } catch {
+            return "Reached Icarus, but the alert feed failed (\(error.localizedDescription)). Start the API with `python mobile_api.py`, not run_local.py."
+        }
+        return "Connected to Icarus at \(host)."
     }
 
     func openChart(_ symbol: String) {

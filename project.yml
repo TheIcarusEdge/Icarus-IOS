@@ -20,6 +20,8 @@ targets:
         NSFaceIDUsageDescription: Unlock Icarus with Face ID.
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.theicarusedge.icarus

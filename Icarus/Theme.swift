@@ -59,8 +59,10 @@ struct Style {
     }
 
     static func font(_ id: FontID, _ size: CGFloat, _ weight: Font.Weight) -> Font {
+        // fixedSize: the layout is drawn for exact point sizes, so it must not
+        // grow with the phone's Dynamic Type setting (that wrapped the tabs).
         let base: Font = UIFont(name: id.postScript, size: size) != nil
-            ? .custom(id.postScript, size: size)
+            ? .custom(id.postScript, fixedSize: size)
             : .system(size: size)
         return base.weight(weight).monospacedDigit()
     }

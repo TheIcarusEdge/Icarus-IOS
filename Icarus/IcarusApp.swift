@@ -40,11 +40,13 @@ struct RootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 16) {
+            HStack(spacing: 14) {
                 ForEach(tabs, id: \.self) { t in
                     Button { store.tab = t } label: {
                         Text(t.rawValue)
                             .font(s.f(15, .semibold))
+                            .lineLimit(1)
+                            .fixedSize()
                             .foregroundStyle(store.tab == t ? s.p.text : s.p.dim)
                             .frame(height: 44)
                             .overlay(alignment: .bottom) {
@@ -68,7 +70,7 @@ struct RootView: View {
 
             if store.offline {
                 Text(server.isEmpty ? "Add the Icarus address in Settings."
-                                    : "Can't reach Icarus. Check Tailscale and the address in Settings.")
+                                    : "Can't reach Icarus. Settings › Test Connection shows why.")
                     .font(s.f(13, .semibold))
                     .foregroundStyle(s.p.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
